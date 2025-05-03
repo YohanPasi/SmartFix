@@ -7,6 +7,7 @@ const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const shopRoutes = require('./routes/shopRoutes');
+const productRoutes = require('./routes/productRoutes');
 const path = require('path');
 const fs = require('fs');
 
@@ -67,8 +68,9 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/shops', shopRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -110,4 +110,48 @@ export const shopService = {
       throw error.response?.data || error;
     }
   },
+
+  addProduct: async (formData) => {
+    try {
+      const response = await api.post('/api/products', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  updateProduct: async (productId, formData) => {
+    try {
+      const response = await api.put(`/api/products/${productId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  deleteProduct: async (productId) => {
+    try {
+      const response = await api.delete(`/api/products/${productId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  getProducts: async () => {
+    try {
+      const response = await api.get('/api/products');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };

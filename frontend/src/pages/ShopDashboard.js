@@ -17,7 +17,10 @@ import {
     X,
     Wrench,
     Clock,
-    Calendar
+    Calendar,
+    Plus,
+    Search,
+    Trash2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -69,7 +72,13 @@ const ShopDashboard = () => {
         shopLogo: '',
         minimumOrderAmount: 0,
         deliveryRadius: 0,
-        taxRate: 0
+        taxRate: 0,
+        productName: '',
+        price: '',
+        productDescription: '',
+        category: '',
+        stock: '',
+        productImages: []
     });
 
     const [availableCategories] = useState([
@@ -86,6 +95,10 @@ const ShopDashboard = () => {
         'Standard Delivery', 'Express Delivery', 'Same Day Delivery',
         'Pickup Available', 'Free Delivery'
     ]);
+
+    const [products, setProducts] = useState([]);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [selectedImages, setSelectedImages] = useState([]);
 
     useEffect(() => {
         if (user) {
@@ -122,7 +135,13 @@ const ShopDashboard = () => {
                 deliveryRadius: user.shopDetails?.deliveryRadius || 0,
                 taxRate: user.shopDetails?.taxRate || 0,
                 shopBanner: user.shopDetails?.shopBanner || '',
-                shopLogo: user.shopDetails?.shopLogo || ''
+                shopLogo: user.shopDetails?.shopLogo || '',
+                productName: '',
+                price: '',
+                productDescription: '',
+                category: '',
+                stock: '',
+                productImages: []
             });
             setPreviewBanner(user.shopDetails?.shopBanner || '');
             setPreviewLogo(user.shopDetails?.shopLogo || '');
@@ -243,119 +262,207 @@ const ShopDashboard = () => {
         }
     };
 
+    const handleImageChange = (e) => {
+        const files = Array.from(e.target.files);
+        setSelectedImages(files);
+        
+        // Create preview URLs for the images
+        const imageUrls = files.map(file => URL.createObjectURL(file));
+        setFormData(prev => ({
+            ...prev,
+            productImages: [...prev.productImages, ...imageUrls]
+        }));
+    };
+
+    const handleEditProduct = (product) => {
+        setSelectedProduct(product);
+        setIsEditing(true);
+        setFormData(prev => ({
+            ...prev,
+            productName: product.name,
+            price: product.price,
+            description: product.description,
+            category: product.category,
+            stock: product.stock,
+            productImages: product.images
+        }));
+    };
+
+    const handleDeleteProduct = async (productId) => {
+        try {
+            const response = await shopService.deleteProduct(productId);
+            if (response.success) {
+                setProducts(prev => prev.filter(p => p.id !== productId));
+                toast.success('Product deleted successfully');
+            }
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            toast.error(error.response?.data?.error || 'Failed to delete product');
+        }
+    };
+
+    const handleRemoveImage = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            productImages: prev.productImages.filter((_, i) => i !== index)
+        }));
+        setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            console.log('Current form data:', formData);
-
-            const formDataToSend = new FormData();
-            
-            // Add basic user info
-            formDataToSend.append('firstName', user.firstName);
-            formDataToSend.append('lastName', user.lastName);
-            
-            // Add profile info
-            formDataToSend.append('profile[contactNumber]', formData.phone || '');
-            formDataToSend.append('profile[address]', formData.address || '');
-            formDataToSend.append('profile[province]', formData.province || '');
-            formDataToSend.append('profile[district]', formData.district || '');
-            
-            // Add shop details
-            formDataToSend.append('shopDetails[shopName]', formData.shopName || '');
-            formDataToSend.append('shopDetails[description]', formData.description || '');
-            formDataToSend.append('shopDetails[businessRegistrationNumber]', formData.businessRegistrationNumber || '');
-            formDataToSend.append('shopDetails[businessType]', formData.businessType || '');
-            
-            // Add opening hours
-            Object.entries(formData.openingHours || {}).forEach(([day, hours]) => {
-                formDataToSend.append(`shopDetails[openingHours][${day}][start]`, hours.start);
-                formDataToSend.append(`shopDetails[openingHours][${day}][end]`, hours.end);
-            });
-            
-            // Add arrays
-            formData.categories?.forEach(category => {
-                formDataToSend.append('shopDetails[categories][]', category);
-            });
-            
-            formData.paymentMethods?.forEach(method => {
-                formDataToSend.append('shopDetails[paymentMethods][]', method);
-            });
-            
-            formData.deliveryOptions?.forEach(option => {
-                formDataToSend.append('shopDetails[deliveryOptions][]', option);
-            });
-            
-            // Add social media
-            Object.entries(formData.socialMedia || {}).forEach(([platform, url]) => {
-                formDataToSend.append(`shopDetails[socialMedia][${platform}]`, url);
-            });
-            
-            // Add numbers
-            formDataToSend.append('shopDetails[minimumOrderAmount]', formData.minimumOrderAmount || 0);
-            formDataToSend.append('shopDetails[deliveryRadius]', formData.deliveryRadius || 0);
-            formDataToSend.append('shopDetails[taxRate]', formData.taxRate || 0);
-            
-            // Add role
-            formDataToSend.append('role', 'shop_owner');
-            
-            // Add images if they exist
-            if (selectedLogo) {
-                formDataToSend.append('shopLogo', selectedLogo);
-            }
-            if (selectedBanner) {
-                formDataToSend.append('shopBanner', selectedBanner);
-            }
-
-            console.log('Sending update request with form data');
-            const response = await shopService.updateShopProfile(formDataToSend);
-
-            if (response.success) {
-                // Update the form data with the response data directly
-                const updatedData = response.data;
-                console.log('Updated data from server:', updatedData);
+            if (activeTab === 'products') {
+                const formDataToSend = new FormData();
                 
-                // Update the user context and localStorage
-                updateUser(updatedData);
-                localStorage.setItem('user', JSON.stringify(updatedData));
+                // Add product details
+                formDataToSend.append('name', formData.productName);
+                formDataToSend.append('price', formData.price);
+                formDataToSend.append('description', formData.description);
+                formDataToSend.append('category', formData.category);
+                formDataToSend.append('stock', formData.stock);
                 
-                // Update the form data with the new values
-                setFormData(prev => ({
-                    ...prev,
-                    shopName: updatedData.shopDetails?.shopName || '',
-                    description: updatedData.shopDetails?.description || '',
-                    businessRegistrationNumber: updatedData.shopDetails?.businessRegistrationNumber || '',
-                    businessType: updatedData.shopDetails?.businessType || '',
-                    openingHours: updatedData.shopDetails?.openingHours || prev.openingHours,
-                    categories: updatedData.shopDetails?.categories || [],
-                    paymentMethods: updatedData.shopDetails?.paymentMethods || [],
-                    deliveryOptions: updatedData.shopDetails?.deliveryOptions || [],
-                    socialMedia: updatedData.shopDetails?.socialMedia || prev.socialMedia,
-                    minimumOrderAmount: updatedData.shopDetails?.minimumOrderAmount || 0,
-                    deliveryRadius: updatedData.shopDetails?.deliveryRadius || 0,
-                    taxRate: updatedData.shopDetails?.taxRate || 0,
-                    shopLogo: updatedData.shopDetails?.shopLogo || '',
-                    shopBanner: updatedData.shopDetails?.shopBanner || '',
-                    phone: updatedData.profile?.contactNumber || '',
-                    address: updatedData.profile?.address || '',
-                    province: updatedData.profile?.province || '',
-                    district: updatedData.profile?.district || ''
-                }));
+                // Add images
+                selectedImages.forEach((image, index) => {
+                    formDataToSend.append(`images`, image);
+                });
 
-                setIsEditing(false);
-                setSelectedBanner(null);
-                setSelectedLogo(null);
-                toast.success('Shop profile updated successfully!');
+                let response;
+                if (selectedProduct) {
+                    response = await shopService.updateProduct(selectedProduct.id, formDataToSend);
+                } else {
+                    response = await shopService.addProduct(formDataToSend);
+                }
+
+                if (response.success) {
+                    if (selectedProduct) {
+                        setProducts(prev => prev.map(p => 
+                            p.id === selectedProduct.id ? response.data : p
+                        ));
+                    } else {
+                        setProducts(prev => [...prev, response.data]);
+                    }
+                    
+                    // Reset form
+                    setFormData(prev => ({
+                        ...prev,
+                        productName: '',
+                        price: '',
+                        description: '',
+                        category: '',
+                        stock: '',
+                        productImages: []
+                    }));
+                    setSelectedProduct(null);
+                    setSelectedImages([]);
+                    setIsEditing(false);
+                    toast.success(selectedProduct ? 'Product updated successfully' : 'Product added successfully');
+                }
+            } else {
+                console.log('Current form data:', formData);
+
+                const formDataToSend = new FormData();
+                
+                // Add basic user info
+                formDataToSend.append('firstName', user.firstName);
+                formDataToSend.append('lastName', user.lastName);
+                
+                // Add profile info
+                formDataToSend.append('profile[contactNumber]', formData.phone || '');
+                formDataToSend.append('profile[address]', formData.address || '');
+                formDataToSend.append('profile[province]', formData.province || '');
+                formDataToSend.append('profile[district]', formData.district || '');
+                
+                // Add shop details
+                formDataToSend.append('shopDetails[shopName]', formData.shopName || '');
+                formDataToSend.append('shopDetails[description]', formData.description || '');
+                formDataToSend.append('shopDetails[businessRegistrationNumber]', formData.businessRegistrationNumber || '');
+                formDataToSend.append('shopDetails[businessType]', formData.businessType || '');
+                
+                // Add opening hours
+                Object.entries(formData.openingHours || {}).forEach(([day, hours]) => {
+                    formDataToSend.append(`shopDetails[openingHours][${day}][start]`, hours.start);
+                    formDataToSend.append(`shopDetails[openingHours][${day}][end]`, hours.end);
+                });
+                
+                // Add arrays
+                formData.categories?.forEach(category => {
+                    formDataToSend.append('shopDetails[categories][]', category);
+                });
+                
+                formData.paymentMethods?.forEach(method => {
+                    formDataToSend.append('shopDetails[paymentMethods][]', method);
+                });
+                
+                formData.deliveryOptions?.forEach(option => {
+                    formDataToSend.append('shopDetails[deliveryOptions][]', option);
+                });
+                
+                // Add social media
+                Object.entries(formData.socialMedia || {}).forEach(([platform, url]) => {
+                    formDataToSend.append(`shopDetails[socialMedia][${platform}]`, url);
+                });
+                
+                // Add numbers
+                formDataToSend.append('shopDetails[minimumOrderAmount]', formData.minimumOrderAmount || 0);
+                formDataToSend.append('shopDetails[deliveryRadius]', formData.deliveryRadius || 0);
+                formDataToSend.append('shopDetails[taxRate]', formData.taxRate || 0);
+                
+                // Add role
+                formDataToSend.append('role', 'shop_owner');
+                
+                // Add images if they exist
+                if (selectedLogo) {
+                    formDataToSend.append('shopLogo', selectedLogo);
+                }
+                if (selectedBanner) {
+                    formDataToSend.append('shopBanner', selectedBanner);
+                }
+
+                console.log('Sending update request with form data');
+                const response = await shopService.updateShopProfile(formDataToSend);
+
+                if (response.success) {
+                    // Update the form data with the response data directly
+                    const updatedData = response.data;
+                    console.log('Updated data from server:', updatedData);
+                    
+                    // Update the user context and localStorage
+                    updateUser(updatedData);
+                    localStorage.setItem('user', JSON.stringify(updatedData));
+                    
+                    // Update the form data with the new values
+                    setFormData(prev => ({
+                        ...prev,
+                        shopName: updatedData.shopDetails?.shopName || '',
+                        description: updatedData.shopDetails?.description || '',
+                        businessRegistrationNumber: updatedData.shopDetails?.businessRegistrationNumber || '',
+                        businessType: updatedData.shopDetails?.businessType || '',
+                        openingHours: updatedData.shopDetails?.openingHours || prev.openingHours,
+                        categories: updatedData.shopDetails?.categories || [],
+                        paymentMethods: updatedData.shopDetails?.paymentMethods || [],
+                        deliveryOptions: updatedData.shopDetails?.deliveryOptions || [],
+                        socialMedia: updatedData.shopDetails?.socialMedia || prev.socialMedia,
+                        minimumOrderAmount: updatedData.shopDetails?.minimumOrderAmount || 0,
+                        deliveryRadius: updatedData.shopDetails?.deliveryRadius || 0,
+                        taxRate: updatedData.shopDetails?.taxRate || 0,
+                        shopLogo: updatedData.shopDetails?.shopLogo || '',
+                        shopBanner: updatedData.shopDetails?.shopBanner || '',
+                        phone: updatedData.profile?.contactNumber || '',
+                        address: updatedData.profile?.address || '',
+                        province: updatedData.profile?.province || '',
+                        district: updatedData.profile?.district || ''
+                    }));
+
+                    setIsEditing(false);
+                    setSelectedBanner(null);
+                    setSelectedLogo(null);
+                    toast.success('Shop profile updated successfully!');
+                }
             }
         } catch (error) {
-            console.error('Error updating profile:', error);
-            if (error.response?.status === 401) {
-                toast.error('Session expired. Please login again.');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                navigate('/login');
-            } else {
-                toast.error(error.response?.data?.error || 'Error updating profile');
-            }
+            console.error('Error submitting form:', error);
+            toast.error(error.response?.data?.error || 'Failed to submit form');
         }
     };
 
@@ -476,6 +583,24 @@ const ShopDashboard = () => {
         }));
     };
 
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await shopService.getProducts();
+                if (response.success) {
+                    setProducts(response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching products:', error);
+                toast.error('Failed to fetch products');
+            }
+        };
+
+        if (activeTab === 'products') {
+            fetchProducts();
+        }
+    }, [activeTab]);
+
     return (
         <div className="min-h-screen bg-gray-100">
             <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -548,6 +673,17 @@ const ShopDashboard = () => {
                         >
                             <Star className="h-5 w-5 inline-block mr-2" />
                             Reviews
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('products')}
+                            className={`${
+                                activeTab === 'products'
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            <Package className="h-5 w-5 inline-block mr-2" />
+                            Products
                         </button>
                     </nav>
                 </div>
@@ -1052,6 +1188,301 @@ const ShopDashboard = () => {
                             ) : (
                                 <p className="text-sm text-gray-500">No reviews available.</p>
                             )}
+                        </div>
+                    </motion.div>
+                )}
+
+                {activeTab === 'products' && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-lg shadow-sm p-6"
+                    >
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-2xl font-bold text-gray-900">
+                                    Product Management
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Manage your shop's products and inventory
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsEditing(!isEditing)}
+                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                <Plus className="h-5 w-5 mr-2" />
+                                Add New Product
+                            </button>
+                        </div>
+
+                        {isEditing && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-gray-50 rounded-lg p-6 mb-8"
+                            >
+                                <h4 className="text-lg font-semibold text-gray-900 mb-4">
+                                    {selectedProduct ? 'Edit Product' : 'Add New Product'}
+                                </h4>
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Product Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="productName"
+                                                value={formData.productName}
+                                                onChange={handleChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                placeholder="Enter product name"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Price (Rs.)
+                                            </label>
+                                            <div className="mt-1 relative rounded-md shadow-sm">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span className="text-gray-500 sm:text-sm">Rs.</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    name="price"
+                                                    value={formData.price}
+                                                    onChange={handleChange}
+                                                    className="block w-full pl-12 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Description
+                                        </label>
+                                        <textarea
+                                            name="description"
+                                            value={formData.description}
+                                            onChange={handleChange}
+                                            rows={4}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            placeholder="Enter product description"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Category
+                                            </label>
+                                            <select
+                                                name="category"
+                                                value={formData.category}
+                                                onChange={handleChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            >
+                                                <option value="">Select Category</option>
+                                                <option value="electronics">Electronics</option>
+                                                <option value="fashion">Fashion</option>
+                                                <option value="home">Home & Garden</option>
+                                                <option value="beauty">Beauty</option>
+                                                <option value="sports">Sports</option>
+                                                <option value="toys">Toys</option>
+                                                <option value="books">Books</option>
+                                                <option value="food">Food & Beverages</option>
+                                                <option value="health">Health</option>
+                                                <option value="automotive">Automotive</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Stock Quantity
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="stock"
+                                                value={formData.stock}
+                                                onChange={handleChange}
+                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                placeholder="Enter stock quantity"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Product Images
+                                        </label>
+                                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-indigo-500 transition-colors">
+                                            <div className="space-y-1 text-center">
+                                                <svg
+                                                    className="mx-auto h-12 w-12 text-gray-400"
+                                                    stroke="currentColor"
+                                                    fill="none"
+                                                    viewBox="0 0 48 48"
+                                                    aria-hidden="true"
+                                                >
+                                                    <path
+                                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                                        strokeWidth={2}
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
+                                                <div className="flex text-sm text-gray-600">
+                                                    <label
+                                                        htmlFor="file-upload"
+                                                        className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
+                                                    >
+                                                        <span>Upload images</span>
+                                                        <input
+                                                            id="file-upload"
+                                                            name="file-upload"
+                                                            type="file"
+                                                            className="sr-only"
+                                                            multiple
+                                                            onChange={handleImageChange}
+                                                        />
+                                                    </label>
+                                                    <p className="pl-1">or drag and drop</p>
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    PNG, JPG, GIF up to 10MB
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {formData.productImages.length > 0 && (
+                                            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                                                {formData.productImages.map((image, index) => (
+                                                    <div key={index} className="relative group">
+                                                        <img
+                                                            src={image}
+                                                            alt={`Preview ${index + 1}`}
+                                                            className="w-full h-32 object-cover rounded-lg"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveImage(index)}
+                                                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex justify-end space-x-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditing(false);
+                                                setSelectedProduct(null);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    productName: '',
+                                                    price: '',
+                                                    description: '',
+                                                    category: '',
+                                                    stock: '',
+                                                    productImages: []
+                                                }));
+                                            }}
+                                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        >
+                                            {selectedProduct ? 'Update Product' : 'Add Product'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        )}
+
+                        <div className="mt-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <h4 className="text-lg font-semibold text-gray-900">
+                                    Your Products
+                                </h4>
+                                <div className="flex items-center space-x-4">
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search products..."
+                                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                            <Search className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                    </div>
+                                    <select className="block w-40 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option>All Categories</option>
+                                        <option>Electronics</option>
+                                        <option>Fashion</option>
+                                        <option>Home & Garden</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {products.map((product) => (
+                                    <div
+                                        key={product.id}
+                                        className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+                                    >
+                                        <div className="relative h-48">
+                                            <img
+                                                src={product.images[0] || 'https://via.placeholder.com/300'}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <div className="absolute top-2 right-2 flex space-x-2">
+                                                <button
+                                                    onClick={() => handleEditProduct(product)}
+                                                    className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-100 transition-colors"
+                                                >
+                                                    <Edit2 className="h-4 w-4 text-gray-600" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteProduct(product.id)}
+                                                    className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-100 transition-colors"
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="p-4">
+                                            <h5 className="text-lg font-medium text-gray-900 truncate">
+                                                {product.name}
+                                            </h5>
+                                            <p className="mt-1 text-sm text-gray-500 line-clamp-2">
+                                                {product.description}
+                                            </p>
+                                            <div className="mt-4 flex items-center justify-between">
+                                                <span className="text-lg font-semibold text-indigo-600">
+                                                    Rs. {product.price}
+                                                </span>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                    product.stock > 10 ? 'bg-green-100 text-green-800' : 
+                                                    product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 
+                                                    'bg-red-100 text-red-800'
+                                                }`}>
+                                                    {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </motion.div>
                 )}
