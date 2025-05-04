@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = 'http://localhost:5001/api';
 
 // Create axios instance with default config
-const api = axios.create({
+export const api = axios.create({
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json'
@@ -73,56 +73,48 @@ export const authService = {
                 // Store token
                 localStorage.setItem('token', token);
                 
-                // Fetch complete user profile
-                const userProfile = await api.get('/auth/me', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
+                // Store user data
+                const userData = response.data.data.user;
+                localStorage.setItem('user', JSON.stringify(userData));
                 
-                if (userProfile.data.success) {
-                    // Store complete user data
-                    localStorage.setItem('user', JSON.stringify(userProfile.data.data));
-                    return {
-                        success: true,
-                        data: {
-                            token,
-                            user: userProfile.data.data
-                        }
-                    };
-                } else {
-                    throw new Error('Failed to fetch user profile');
-                }
+                return {
+                    success: true,
+                    data: {
+                        token,
+                        user: userData
+                    }
+                };
             } else {
                 throw new Error(response.data.error || 'Login failed');
             }
         } catch (error) {
             console.error('Login error:', error);
-            throw error;
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                console.error('Error response:', error.response.data);
+                throw new Error(error.response.data.error || 'Login failed');
+            } else if (error.request) {
+                // The request was made but no response was received
+                console.error('No response received:', error.request);
+                throw new Error('No response from server. Please try again.');
+            } else {
+                // Something happened in setting up the request that triggered an Error
+                console.error('Error setting up request:', error.message);
+                throw new Error('Error setting up login request. Please try again.');
+            }
         }
     },
 
-    getCurrentUser: async () => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                throw new Error('No token found');
-            }
+    logout: () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+    },
 
-            const response = await api.get('/auth/me', {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            
-            if (response.data.success) {
-                localStorage.setItem('user', JSON.stringify(response.data.data));
-            }
-            return response.data;
-        } catch (error) {
-            console.error('Get current user error:', error);
-            throw error;
-        }
+    getCurrentUser: () => {
+        const user = localStorage.getItem('user');
+        return user ? JSON.parse(user) : null;
     },
 
     updateProfile: async (formData) => {
@@ -196,11 +188,6 @@ export const authService = {
             console.error('Update profile error:', error);
             throw error;
         }
-    },
-
-    logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
     },
 
     updateRole: async (role) => {

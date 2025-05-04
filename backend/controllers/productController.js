@@ -102,7 +102,8 @@ exports.updateProduct = async (req, res) => {
 // Delete a product
 exports.deleteProduct = async (req, res) => {
     try {
-        const product = await Product.findOneAndDelete({
+        // First find the product to ensure it exists and belongs to the shop
+        const product = await Product.findOne({
             _id: req.params.id,
             shopId: req.user._id
         });
@@ -111,9 +112,17 @@ exports.deleteProduct = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
+        // Delete the product
+        await Product.deleteOne({ _id: req.params.id });
+
         res.json({ success: true, message: 'Product deleted successfully' });
     } catch (error) {
         console.error('Error deleting product:', error);
-        res.status(500).json({ success: false, error: 'Failed to delete product' });
+        // Send more detailed error message
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Failed to delete product',
+            details: error.stack
+        });
     }
 }; 

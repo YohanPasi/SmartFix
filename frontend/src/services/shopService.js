@@ -61,9 +61,65 @@ export const shopService = {
       // Create a new FormData instance to ensure proper formatting
       const formattedFormData = new FormData();
       
-      // Add all fields from the original formData
-      for (const [key, value] of formData.entries()) {
-        formattedFormData.append(key, value);
+      // Add basic user info
+      formattedFormData.append('firstName', formData.get('firstName') || '');
+      formattedFormData.append('lastName', formData.get('lastName') || '');
+
+      // Add profile info
+      formattedFormData.append('profile[contactNumber]', formData.get('phone') || '');
+      formattedFormData.append('profile[address]', formData.get('address') || '');
+      formattedFormData.append('profile[province]', formData.get('province') || '');
+      formattedFormData.append('profile[district]', formData.get('district') || '');
+      formattedFormData.append('profile[city]', formData.get('city') || '');
+      formattedFormData.append('profile[postalCode]', formData.get('postalCode') || '');
+
+      // Add shop details
+      formattedFormData.append('shopDetails[shopName]', formData.get('shopName') || '');
+      formattedFormData.append('shopDetails[description]', formData.get('description') || '');
+      formattedFormData.append('shopDetails[category]', formData.get('category') || '');
+      formattedFormData.append('shopDetails[businessRegistrationNumber]', formData.get('businessRegistrationNumber') || '');
+      formattedFormData.append('shopDetails[businessType]', formData.get('businessType') || '');
+
+      // Add opening hours
+      const openingHours = JSON.parse(formData.get('openingHours') || '{}');
+      Object.entries(openingHours).forEach(([day, hours]) => {
+        formattedFormData.append(`shopDetails[openingHours][${day}][start]`, hours.start || '');
+        formattedFormData.append(`shopDetails[openingHours][${day}][end]`, hours.end || '');
+      });
+
+      // Add arrays
+      const categories = JSON.parse(formData.get('categories') || '[]');
+      categories.forEach((category, index) => {
+        formattedFormData.append(`shopDetails[categories][${index}]`, category);
+      });
+
+      const paymentMethods = JSON.parse(formData.get('paymentMethods') || '[]');
+      paymentMethods.forEach((method, index) => {
+        formattedFormData.append(`shopDetails[paymentMethods][${index}]`, method);
+      });
+
+      const deliveryOptions = JSON.parse(formData.get('deliveryOptions') || '[]');
+      deliveryOptions.forEach((option, index) => {
+        formattedFormData.append(`shopDetails[deliveryOptions][${index}]`, option);
+      });
+
+      // Add social media
+      const socialMedia = JSON.parse(formData.get('socialMedia') || '{}');
+      Object.entries(socialMedia).forEach(([platform, url]) => {
+        formattedFormData.append(`shopDetails[socialMedia][${platform}]`, url || '');
+      });
+
+      // Add numeric fields
+      formattedFormData.append('shopDetails[minimumOrderAmount]', formData.get('minimumOrderAmount') || '0');
+      formattedFormData.append('shopDetails[deliveryRadius]', formData.get('deliveryRadius') || '0');
+      formattedFormData.append('shopDetails[taxRate]', formData.get('taxRate') || '0');
+
+      // Add images if they exist
+      if (formData.get('shopLogo')) {
+        formattedFormData.append('shopLogo', formData.get('shopLogo'));
+      }
+      if (formData.get('shopBanner')) {
+        formattedFormData.append('shopBanner', formData.get('shopBanner'));
       }
       
       const response = await api.put('/api/shops/profile', formattedFormData, {

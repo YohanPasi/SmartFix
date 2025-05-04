@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const ServiceProvider = require('../models/ServiceProvider');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { cloudinary, upload } = require('../config/cloudinary');
@@ -19,14 +20,26 @@ const authController = {
                 });
             }
 
+            // Validate role
+            const validRoles = ['user', 'service_provider', 'shop_owner', 'admin'];
+            const userRole = role ? role.toLowerCase().trim() : 'user';
+            
+            if (!validRoles.includes(userRole)) {
+                console.log('Invalid role provided:', role);
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid role provided'
+                });
+            }
+
             // Create new user with role
             const user = new User({
-                email,
-                firstName,
-                lastName,
+                email: email.toLowerCase().trim(),
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
                 password,
-                role: role || 'user',  // Use provided role or default to 'user'
-                isRoleSelected: !!role  // Set to true if role is provided
+                role: userRole,
+                isRoleSelected: !!role
             });
 
             // Validate the user object before saving
@@ -39,26 +52,69 @@ const authController = {
                 });
             }
 
-            await user.save();
-            console.log('User created successfully:', email);
+            try {
+                await user.save();
+                console.log('User created successfully:', email);
 
-            // Generate token
-            const token = user.generateAuthToken();
+                // If user is a service provider, create their profile
+                if (userRole === 'service_provider') {
+                    try {
+                        // Create session data
+                        const sessionData = {
+                            token: user.generateAuthToken(),
+                            deviceInfo: req.headers['user-agent'],
+                            ipAddress: req.ip,
+                            lastActivity: Date.now(),
+                            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+                        };
 
-            res.status(201).json({
-                success: true,
-                data: {
-                    token,
-                    user: {
-                        id: user._id,
-                        email: user.email,
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        role: user.role,
-                        isRoleSelected: user.isRoleSelected
+                        const serviceProvider = new ServiceProvider({
+                            user: user._id,
+                            businessHours: {
+                                open: '09:00',
+                                close: '18:00',
+                                days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+                            },
+                            ratings: {
+                                average: 0,
+                                count: 0,
+                                reviews: []
+                            },
+                            sessions: [sessionData]
+                        });
+
+                        await serviceProvider.save();
+                        console.log('Service provider profile created for user:', user._id);
+                    } catch (profileError) {
+                        console.error('Error creating service provider profile:', profileError);
+                        // Don't fail the signup if profile creation fails
                     }
                 }
-            });
+
+                // Generate token
+                const token = user.generateAuthToken();
+
+                res.status(201).json({
+                    success: true,
+                    data: {
+                        token,
+                        user: {
+                            id: user._id,
+                            email: user.email,
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            role: user.role,
+                            isRoleSelected: user.isRoleSelected
+                        }
+                    }
+                });
+            } catch (saveError) {
+                console.error('Error saving user:', saveError);
+                return res.status(400).json({
+                    success: false,
+                    error: saveError.message || 'Failed to save user'
+                });
+            }
         } catch (error) {
             console.error('Signup error:', error);
             res.status(500).json({

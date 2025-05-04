@@ -8,6 +8,8 @@ const authRoutes = require('./routes/authRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const shopRoutes = require('./routes/shopRoutes');
 const productRoutes = require('./routes/productRoutes');
+const serviceProviderRoutes = require('./routes/serviceProviderRoutes');
+const serviceRoutes = require('./routes/serviceRoutes');
 const path = require('path');
 const fs = require('fs');
 
@@ -28,7 +30,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const corsOptions = {
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -65,12 +67,36 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/shops', shopRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/upload', uploadRoutes);
+// Mount routes with logging
+console.log('Mounting routes...');
+try {
+    console.log('Mounting auth routes...');
+    app.use('/api/auth', authRoutes);
+    
+    console.log('Mounting user routes...');
+    app.use('/api/users', userRoutes);
+    
+    console.log('Mounting shop routes...');
+    app.use('/api/shops', shopRoutes);
+    
+    console.log('Mounting product routes...');
+    app.use('/api/products', productRoutes);
+    
+    console.log('Mounting upload routes...');
+    app.use('/api/upload', uploadRoutes);
+    
+    console.log('Mounting service provider routes...');
+    app.use('/api/service-providers', serviceProviderRoutes);
+    
+    console.log('Mounting service routes...');
+    console.log('Service Routes:', serviceRoutes);
+    app.use('/api/services', serviceRoutes);
+    
+    console.log('All routes mounted successfully');
+} catch (error) {
+    console.error('Error mounting routes:', error);
+    process.exit(1);
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -98,7 +124,7 @@ app.use((err, req, res, next) => {
 
     res.status(500).json({
         success: false,
-        error: err.message || 'Something broke!'
+        error: err.message || 'Server error'
     });
 });
 

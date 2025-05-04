@@ -75,7 +75,7 @@ const ShopDashboard = () => {
         taxRate: 0,
         productName: '',
         price: '',
-        productDescription: '',
+        description: '',
         category: '',
         stock: '',
         productImages: []
@@ -138,7 +138,7 @@ const ShopDashboard = () => {
                 shopLogo: user.shopDetails?.shopLogo || '',
                 productName: '',
                 price: '',
-                productDescription: '',
+                description: '',
                 category: '',
                 stock: '',
                 productImages: []
@@ -289,15 +289,25 @@ const ShopDashboard = () => {
     };
 
     const handleDeleteProduct = async (productId) => {
+        if (!productId) {
+            toast.error('Invalid product ID');
+            return;
+        }
+
+        const loadingToast = toast.loading('Deleting product...');
         try {
             const response = await shopService.deleteProduct(productId);
             if (response.success) {
-                setProducts(prev => prev.filter(p => p.id !== productId));
+                setProducts(prev => prev.filter(p => p._id !== productId));
+                toast.dismiss(loadingToast);
                 toast.success('Product deleted successfully');
+            } else {
+                throw new Error(response.error || 'Failed to delete product');
             }
         } catch (error) {
             console.error('Error deleting product:', error);
-            toast.error(error.response?.data?.error || 'Failed to delete product');
+            toast.dismiss(loadingToast);
+            toast.error(error.response?.data?.error || error.message || 'Failed to delete product');
         }
     };
 
@@ -311,6 +321,7 @@ const ShopDashboard = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const loadingToast = toast.loading(selectedProduct ? 'Updating product...' : 'Adding product...');
         try {
             if (activeTab === 'products') {
                 const formDataToSend = new FormData();
@@ -323,13 +334,13 @@ const ShopDashboard = () => {
                 formDataToSend.append('stock', formData.stock);
                 
                 // Add images
-                selectedImages.forEach((image, index) => {
-                    formDataToSend.append(`images`, image);
+                selectedImages.forEach((image) => {
+                    formDataToSend.append('images', image);
                 });
 
                 let response;
                 if (selectedProduct) {
-                    response = await shopService.updateProduct(selectedProduct.id, formDataToSend);
+                    response = await shopService.updateProduct(selectedProduct._id, formDataToSend);
                 } else {
                     response = await shopService.addProduct(formDataToSend);
                 }
@@ -337,7 +348,7 @@ const ShopDashboard = () => {
                 if (response.success) {
                     if (selectedProduct) {
                         setProducts(prev => prev.map(p => 
-                            p.id === selectedProduct.id ? response.data : p
+                            p._id === selectedProduct._id ? response.data : p
                         ));
                     } else {
                         setProducts(prev => [...prev, response.data]);
@@ -356,6 +367,7 @@ const ShopDashboard = () => {
                     setSelectedProduct(null);
                     setSelectedImages([]);
                     setIsEditing(false);
+                    toast.dismiss(loadingToast);
                     toast.success(selectedProduct ? 'Product updated successfully' : 'Product added successfully');
                 }
             } else {
@@ -462,6 +474,7 @@ const ShopDashboard = () => {
             }
         } catch (error) {
             console.error('Error submitting form:', error);
+            toast.dismiss(loadingToast);
             toast.error(error.response?.data?.error || 'Failed to submit form');
         }
     };
@@ -978,9 +991,9 @@ const ShopDashboard = () => {
                                     name="description"
                                     value={formData.description}
                                     onChange={handleChange}
-                                    disabled={!isEditing}
                                     rows={4}
                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                    placeholder="Enter product description"
                                 />
                             </div>
 
@@ -1436,7 +1449,7 @@ const ShopDashboard = () => {
                             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {products.map((product) => (
                                     <div
-                                        key={product.id}
+                                        key={product._id}
                                         className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow"
                                     >
                                         <div className="relative h-48">
@@ -1453,7 +1466,13 @@ const ShopDashboard = () => {
                                                     <Edit2 className="h-4 w-4 text-gray-600" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteProduct(product.id)}
+                                                    onClick={() => {
+                                                        if (product._id) {
+                                                            handleDeleteProduct(product._id);
+                                                        } else {
+                                                            toast.error('Invalid product ID');
+                                                        }
+                                                    }}
                                                     className="p-2 bg-white rounded-full shadow-sm hover:bg-gray-100 transition-colors"
                                                 >
                                                     <Trash2 className="h-4 w-4 text-red-600" />

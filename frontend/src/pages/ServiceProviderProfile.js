@@ -1,39 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { User, Upload } from 'lucide-react';
 import { serviceProviderService } from '../services/serviceProviderService';
+import { Button } from "../components/ui/button.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card.jsx";
+import { Input } from "../components/ui/input.jsx";
+import { Label } from "../components/ui/label.jsx";
+import { Textarea } from "../components/ui/textarea.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select.jsx";
 
 const ServiceProviderProfile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    category: '',
-    description: '',
+    firstName: '',
+    lastName: '',
+    contactNumber: '',
     address: '',
     province: '',
     district: '',
     city: '',
     postalCode: '',
-    businessHours: {
-      open: '',
-      close: '',
-      days: []
-    },
+    category: '',
+    bio: '',
+    open: '09:00',
+    close: '18:00',
+    days: [],
     services: []
   });
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState('');
 
   const categories = [
     'Plumbing',
@@ -43,8 +42,6 @@ const ServiceProviderProfile = () => {
     'Gardening',
     'Painting',
     'Moving',
-    'Repair',
-    'Installation',
     'Other'
   ];
 
@@ -72,104 +69,62 @@ const ServiceProviderProfile = () => {
     'Sabaragamuwa': ['Ratnapura', 'Kegalle']
   };
 
-  const days = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday'
-  ];
-
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        if (user) {
-          const response = await serviceProviderService.getProfile();
-          if (response.success) {
-            const userData = response.data;
-            setFormData({
-              name: userData.name || '',
-              email: userData.email || '',
-              phone: userData.phone || '',
-              category: userData.category || '',
-              description: userData.description || '',
-              address: userData.address || '',
-              province: userData.province || '',
-              district: userData.district || '',
-              city: userData.city || '',
-              postalCode: userData.postalCode || '',
-              businessHours: userData.businessHours || {
-                open: '',
-                close: '',
-                days: []
-              },
-              services: userData.services || []
-            });
-            setPreviewUrl(userData.profilePicture || '');
+        console.log('Loading profile data...');
+        const token = localStorage.getItem('token');
+        if (!token) {
+          toast.error('Please login again');
+          logout();
+          navigate('/login');
+          return;
+        }
+        
+        const response = await serviceProviderService.getProfile(token);
+        if (response.success) {
+          const userData = response.data;
+          console.log('Profile data loaded:', userData);
+          
+          setFormData({
+            firstName: userData.user?.firstName || '',
+            lastName: userData.user?.lastName || '',
+            contactNumber: userData.contactNumber || '',
+            address: userData.address || '',
+            province: userData.province || '',
+            district: userData.district || '',
+            city: userData.city || '',
+            postalCode: userData.postalCode || '',
+            category: userData.category || '',
+            bio: userData.bio || '',
+            open: userData.businessHours?.open || '09:00',
+            close: userData.businessHours?.close || '18:00',
+            days: userData.businessHours?.days || [],
+            services: userData.services || []
+          });
+          
+          if (userData.profilePicture) {
+            setPreviewUrl(userData.profilePicture);
           }
         }
       } catch (error) {
         console.error('Error loading profile:', error);
         toast.error('Failed to load profile data');
+        if (error.response?.status === 401) {
+          logout();
+          navigate('/login');
+        }
       }
     };
 
     loadProfile();
-  }, [user]);
+  }, [user, logout, navigate]);
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [id]: value
-    }));
-  };
-
-  const handleBusinessHoursChange = (e) => {
-    const { id, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      businessHours: {
-        ...prev.businessHours,
-        [id]: value
-      }
-    }));
-  };
-
-  const handleDayToggle = (day) => {
-    setFormData(prev => ({
-      ...prev,
-      businessHours: {
-        ...prev.businessHours,
-        days: prev.businessHours.days.includes(day)
-          ? prev.businessHours.days.filter(d => d !== day)
-          : [...prev.businessHours.days, day]
-      }
-    }));
-  };
-
-  const handleServiceAdd = () => {
-    setFormData(prev => ({
-      ...prev,
-      services: [...prev.services, { name: '', price: '', description: '' }]
-    }));
-  };
-
-  const handleServiceChange = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      services: prev.services.map((service, i) => 
-        i === index ? { ...service, [field]: value } : service
-      )
-    }));
-  };
-
-  const handleServiceRemove = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      services: prev.services.filter((_, i) => i !== index)
     }));
   };
 
@@ -204,56 +159,70 @@ const ServiceProviderProfile = () => {
 
       const formDataToSend = new FormData();
       
-      // Add basic info
-      formDataToSend.append('name', formData.name);
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('phone', formData.phone);
-      formDataToSend.append('category', formData.category);
-      formDataToSend.append('description', formData.description);
-      formDataToSend.append('address', formData.address);
-      formDataToSend.append('province', formData.province);
-      formDataToSend.append('district', formData.district);
-      formDataToSend.append('city', formData.city);
-      formDataToSend.append('postalCode', formData.postalCode);
+      // Add basic user info
+      formDataToSend.append('firstName', formData.firstName || '');
+      formDataToSend.append('lastName', formData.lastName || '');
       
-      // Add business hours
-      formDataToSend.append('businessHours[open]', formData.businessHours.open);
-      formDataToSend.append('businessHours[close]', formData.businessHours.close);
-      formData.businessHours.days.forEach(day => {
-        formDataToSend.append('businessHours[days][]', day);
-      });
+      // Add profile info with proper nesting
+      formDataToSend.append('profile[contactNumber]', formData.contactNumber || '');
+      formDataToSend.append('profile[address]', formData.address || '');
+      formDataToSend.append('profile[province]', formData.province || '');
+      formDataToSend.append('profile[district]', formData.district || '');
+      formDataToSend.append('profile[city]', formData.city || '');
+      formDataToSend.append('profile[postalCode]', formData.postalCode || '');
+      formDataToSend.append('profile[category]', formData.category || '');
+      formDataToSend.append('profile[bio]', formData.bio || '');
+      
+      // Add business hours with proper nesting
+      formDataToSend.append('profile[businessHours][open]', formData.open || '09:00');
+      formDataToSend.append('profile[businessHours][close]', formData.close || '18:00');
+      formDataToSend.append('profile[businessHours][days]', JSON.stringify(formData.days || []));
       
       // Add services
-      formData.services.forEach((service, index) => {
-        formDataToSend.append(`services[${index}][name]`, service.name);
-        formDataToSend.append(`services[${index}][price]`, service.price);
-        formDataToSend.append(`services[${index}][description]`, service.description);
-      });
+      formDataToSend.append('providerDetails[services]', JSON.stringify(formData.services || []));
       
-      // Add profile picture if selected
+      // Add profile picture if it exists
       if (selectedImage) {
         formDataToSend.append('profilePicture', selectedImage);
       }
 
-      const response = await serviceProviderService.updateProfile(formDataToSend);
+      // Log the form data before sending
+      console.log('Form data to send:');
+      for (const [key, value] of formDataToSend.entries()) {
+        console.log(`${key}:`, value);
+      }
+
+      console.log('Sending profile update request...');
+      const response = await serviceProviderService.updateProfile(formDataToSend, user.token);
       
       if (response.success) {
+        console.log('Profile update successful:', response.data);
         // Update the user state with the new data
         const updatedUser = {
           ...user,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          category: formData.category,
-          description: formData.description,
-          address: formData.address,
-          province: formData.province,
-          district: formData.district,
-          city: formData.city,
-          postalCode: formData.postalCode,
-          businessHours: formData.businessHours,
-          services: formData.services,
-          profilePicture: response.data.profilePicture || user.profilePicture
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          profile: {
+            ...user.profile,
+            contactNumber: formData.contactNumber,
+            address: formData.address,
+            province: formData.province,
+            district: formData.district,
+            city: formData.city,
+            postalCode: formData.postalCode,
+            category: formData.category,
+            bio: formData.bio,
+            businessHours: {
+              open: formData.open,
+              close: formData.close,
+              days: formData.days
+            },
+            profilePicture: response.data.profile?.profilePicture || user.profile?.profilePicture
+          },
+          providerDetails: {
+            ...user.providerDetails,
+            services: formData.services
+          }
         };
         
         updateUser(updatedUser);
@@ -263,7 +232,15 @@ const ServiceProviderProfile = () => {
       }
     } catch (error) {
       console.error('Profile update error:', error);
-      toast.error(error.message || 'Failed to update profile. Please try again.');
+      if (error.response?.status === 401) {
+        toast.error('Your session has expired. Please log in again.');
+        logout();
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else {
+        toast.error(error.message || 'Failed to update profile. Please try again.');
+      }
     }
   };
 
@@ -313,41 +290,44 @@ const ServiceProviderProfile = () => {
               <h3 className="text-lg font-semibold">Basic Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="firstName">First Name</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
+                    id="firstName"
+                    value={formData.firstName}
                     onChange={handleInputChange}
                     disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="lastName">Last Name</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    disabled
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="contactNumber">Phone Number</Label>
                   <Input
-                    id="phone"
+                    id="contactNumber"
                     type="tel"
-                    value={formData.phone}
+                    value={formData.contactNumber}
                     onChange={handleInputChange}
                     disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category">Service Category</Label>
+                  <Label htmlFor="category">Category</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                     disabled={!isEditing}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={!isEditing ? "bg-gray-100" : ""}>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -373,6 +353,7 @@ const ServiceProviderProfile = () => {
                     value={formData.address}
                     onChange={handleInputChange}
                     disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -383,7 +364,7 @@ const ServiceProviderProfile = () => {
                       onValueChange={handleProvinceChange}
                       disabled={!isEditing}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={!isEditing ? "bg-gray-100" : ""}>
                         <SelectValue placeholder="Select province" />
                       </SelectTrigger>
                       <SelectContent>
@@ -402,7 +383,7 @@ const ServiceProviderProfile = () => {
                       onValueChange={(value) => setFormData(prev => ({ ...prev, district: value }))}
                       disabled={!formData.province || !isEditing}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={!isEditing ? "bg-gray-100" : ""}>
                         <SelectValue placeholder="Select district" />
                       </SelectTrigger>
                       <SelectContent>
@@ -423,6 +404,7 @@ const ServiceProviderProfile = () => {
                       value={formData.city}
                       onChange={handleInputChange}
                       disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-100" : ""}
                     />
                   </div>
                   <div>
@@ -432,10 +414,23 @@ const ServiceProviderProfile = () => {
                       value={formData.postalCode}
                       onChange={handleInputChange}
                       disabled={!isEditing}
+                      className={!isEditing ? "bg-gray-100" : ""}
                     />
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={formData.bio}
+                onChange={handleInputChange}
+                disabled={!isEditing}
+                className={!isEditing ? "bg-gray-100" : ""}
+              />
             </div>
 
             {/* Business Hours */}
@@ -447,9 +442,10 @@ const ServiceProviderProfile = () => {
                   <Input
                     id="open"
                     type="time"
-                    value={formData.businessHours.open}
-                    onChange={handleBusinessHoursChange}
+                    value={formData.open}
+                    onChange={handleInputChange}
                     disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
                 <div>
@@ -457,91 +453,13 @@ const ServiceProviderProfile = () => {
                   <Input
                     id="close"
                     type="time"
-                    value={formData.businessHours.close}
-                    onChange={handleBusinessHoursChange}
+                    value={formData.close}
+                    onChange={handleInputChange}
                     disabled={!isEditing}
+                    className={!isEditing ? "bg-gray-100" : ""}
                   />
                 </div>
               </div>
-              <div>
-                <Label>Business Days</Label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {days.map(day => (
-                    <Button
-                      key={day}
-                      type="button"
-                      variant={formData.businessHours.days.includes(day) ? "default" : "outline"}
-                      onClick={() => handleDayToggle(day)}
-                      disabled={!isEditing}
-                    >
-                      {day}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Services */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Services</h3>
-                {isEditing && (
-                  <Button type="button" onClick={handleServiceAdd}>
-                    Add Service
-                  </Button>
-                )}
-              </div>
-              {formData.services.map((service, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                  <div>
-                    <Label>Service Name</Label>
-                    <Input
-                      value={service.name}
-                      onChange={(e) => handleServiceChange(index, 'name', e.target.value)}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label>Price (Rs.)</Label>
-                    <Input
-                      type="number"
-                      value={service.price}
-                      onChange={(e) => handleServiceChange(index, 'price', e.target.value)}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Input
-                      value={service.description}
-                      onChange={(e) => handleServiceChange(index, 'description', e.target.value)}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  {isEditing && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      className="col-span-full"
-                      onClick={() => handleServiceRemove(index)}
-                    >
-                      Remove Service
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Description */}
-            <div>
-              <Label htmlFor="description">Service Provider Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                disabled={!isEditing}
-                className="mt-2"
-              />
             </div>
 
             {isEditing && (

@@ -22,6 +22,7 @@ import UserDashboard from './pages/UserDashboard';
 import ProviderDashboard from './pages/ProviderDashboard';
 import ShopDashboard from './pages/ShopDashboard';
 import RoleSelectionModal from './components/RoleSelectionModal';
+import ServiceManagement from './pages/ServiceManagement';
 
 // Create a separate component for the app content
 const AppContent = () => {
@@ -42,6 +43,7 @@ const AppContent = () => {
           <Route path="/cart" element={<Cart />} />
           <Route path="/shops" element={<AllShops />} />
           <Route path="/shops/:id" element={<ShopDetails />} />
+          <Route path="/provider/services" element={<ServiceManagement />} />
           
           {/* Protected Routes */}
           <Route 
